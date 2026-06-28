@@ -1,0 +1,39 @@
+# Render Blueprint for the FastAPI backend.
+# Note: a persistent disk requires a paid instance (Starter, ~$7/mo). On the
+# free tier the disk isn't available and SQLite would reset on each deploy.
+services:
+  - type: web
+    name: newsletter-backend
+    runtime: python
+    rootDir: backend
+    plan: starter
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    disk:
+      name: data
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      # SQLite file lives on the mounted disk so it survives redeploys.
+      - key: DATABASE_URL
+        value: sqlite:////var/data/newsletters.db
+      # Generated once by Render; keeps login tokens valid across restarts.
+      - key: JWT_SECRET
+        generateValue: true
+      - key: SMTP_PORT
+        value: "587"
+      # Secrets — set these in the Render dashboard (sync:false = not in the repo).
+      - key: NEWSAPI_KEY
+        sync: false
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: ALLOWED_ORIGINS   # e.g. https://your-app.vercel.app
+        sync: false
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: EMAIL_FROM
+        sync: false

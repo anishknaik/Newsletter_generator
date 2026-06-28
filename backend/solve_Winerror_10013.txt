@@ -1,0 +1,4 @@
+# see what's holding it
+netstat -ano | findstr :8000
+# kill that PID
+taskkill /F /PID <pid>

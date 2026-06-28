@@ -1,5 +1,7 @@
 # Newsletter Generator
 
+[![CI](https://github.com/anishknaik/Newsletter_generator/actions/workflows/ci.yml/badge.svg)](https://github.com/anishknaik/Newsletter_generator/actions/workflows/ci.yml)
+
 Pick a few topics → the app pulls recent news on them → a free LLM writes a
 coherent newsletter → you read it in the browser.
 

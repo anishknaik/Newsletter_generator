@@ -89,20 +89,27 @@ async def send_now(
             detail="Set up your subscription topics first, then send.",
         )
 
+    # Capture what we need, then release the connection so it isn't held idle
+    # across the slow generation (Neon drops idle-in-transaction connections).
+    topics, tone = list(sub.topics), sub.tone
+    filters = NewsFilters(**sub.filters)
+    recipients = recipient_list(user.email, list(sub.recipients))
+    session.close()
+
     try:
-        record = await create_newsletter(
-            session, user.id, sub.topics, sub.tone, NewsFilters(**sub.filters)
-        )
+        record = await create_newsletter(session, user.id, topics, tone, filters)
     except NoArticlesError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except (NewsFetchError, LLMError) as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
     try:
-        status = email_newsletter(recipient_list(user.email, sub.recipients), record)
+        status = email_newsletter(recipients, record)
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=502, detail=f"Email failed: {exc}") from exc
 
-    sub.last_sent_at = datetime.now(timezone.utc)
-    session.commit()
+    fresh = _get_sub(session, user.id)
+    if fresh:
+        fresh.last_sent_at = datetime.now(timezone.utc)
+        session.commit()
     return EmailResult(status=status)

@@ -44,6 +44,9 @@ async def _process_due() -> None:
     from database import engine
 
     now = datetime.now(timezone.utc)
+
+    # Pass 1 (quick reads): collect the data for every due subscription.
+    due: list[dict] = []
     with Session(engine) as session:
         subs = session.exec(
             select(Subscription).where(Subscription.cadence != "off")
@@ -54,19 +57,33 @@ async def _process_due() -> None:
                 last = last.replace(tzinfo=timezone.utc)  # SQLite returns naive
             if not sub.topics or not is_due(sub.cadence, sub.send_hour, last, now):
                 continue
-            try:
-                user = session.get(User, sub.user_id)
+            user = session.get(User, sub.user_id)
+            if user is None:
+                continue
+            due.append({
+                "id": sub.id, "user_id": sub.user_id, "email": user.email,
+                "topics": list(sub.topics), "tone": sub.tone,
+                "filters": NewsFilters(**sub.filters),
+                "recipients": list(sub.recipients),
+            })
+
+    # Pass 2 (slow): generate + email each with short-lived sessions, so no DB
+    # connection is held idle across the LLM call.
+    for d in due:
+        try:
+            with Session(engine) as session:
                 record = await create_newsletter(
-                    session, sub.user_id, sub.topics, sub.tone,
-                    NewsFilters(**sub.filters),
+                    session, d["user_id"], d["topics"], d["tone"], d["filters"]
                 )
-                email_newsletter(recipient_list(user.email, sub.recipients), record)
-                sub.last_sent_at = now
-                session.add(sub)
-                session.commit()
-                print(f"[scheduler] sent {sub.cadence} newsletter to {user.email}")
-            except Exception as exc:  # noqa: BLE001 — one failure shouldn't stop the rest
-                print(f"[scheduler] subscription {sub.id} failed: {exc}")
+            email_newsletter(recipient_list(d["email"], d["recipients"]), record)
+            with Session(engine) as session:
+                sub = session.get(Subscription, d["id"])
+                if sub:
+                    sub.last_sent_at = now
+                    session.commit()
+            print(f"[scheduler] sent newsletter to {d['email']}")
+        except Exception as exc:  # noqa: BLE001 — one failure shouldn't stop the rest
+            print(f"[scheduler] subscription {d['id']} failed: {exc}")
 
 
 def _tick() -> None:

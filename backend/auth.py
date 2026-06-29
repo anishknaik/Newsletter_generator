@@ -72,4 +72,9 @@ def get_current_user(
     user = session.get(User, user_id)
     if user is None:
         raise invalid
+    # Release the DB connection right after auth so it isn't held open (idle in a
+    # transaction) across slow work in the route — e.g. the LLM call in /generate,
+    # which managed Postgres like Neon would drop. The detached user keeps its
+    # already-loaded fields; the route re-acquires a fresh connection when it writes.
+    session.close()
     return user

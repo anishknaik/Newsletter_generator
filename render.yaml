@@ -30,6 +30,9 @@ services:
         sync: false
       - key: ALLOWED_ORIGINS       # e.g. https://your-app.vercel.app
         sync: false
+      # Email via Resend (Render blocks SMTP, so SMTP_* won't work here).
+      - key: RESEND_API_KEY
+        sync: false
       - key: SMTP_HOST
         sync: false
       - key: SMTP_USER

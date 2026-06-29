@@ -64,9 +64,10 @@ def client_fixture(engine, monkeypatch, tmp_path):
     # Generation flows through the service module, so patch its names there.
     monkeypatch.setattr(svc, "fetch_articles", fake_fetch)
     monkeypatch.setattr(svc, "generate_newsletter", fake_generate)
-    # Email in dev mode, writing to a temp outbox.
+    # Email in dev mode, writing to a temp outbox (no Resend, no SMTP).
     monkeypatch.setattr(emailer, "OUTBOX", tmp_path / "outbox")
     monkeypatch.setenv("SMTP_HOST", "")
+    monkeypatch.delenv("RESEND_API_KEY", raising=False)
     # Disable rate limiting by default; the rate-limit test re-enables it.
     rate_limit.limiter.enabled = False
 

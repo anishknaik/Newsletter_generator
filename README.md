@@ -73,10 +73,11 @@ TopicSelector → POST /generate
 - `.env` holds the API keys and `JWT_SECRET` and is gitignored — never commit it.
 - NewsAPI's free tier only covers articles from roughly the last month and is
   rate-limited; if `/generate` returns a 502, check your key and quota.
-- **Email:** if `SMTP_HOST` is blank in `.env`, the app runs in *dev mode* and
-  writes each email to `backend/outbox/` (also gitignored) instead of sending —
-  open the `.html` file to preview it. Set `SMTP_HOST/PORT/USER/PASS` (e.g. a
-  Gmail App Password) to send for real.
+- **Email:** transport is picked at send time — `RESEND_API_KEY` → Resend HTTP API
+  (use in production; cloud hosts like Render block SMTP), else `SMTP_HOST` → SMTP
+  (handy for local dev with a Gmail App Password), else *dev mode* writes each
+  email to `backend/outbox/` (gitignored) as `.html` to preview. On Resend's free
+  tier without a verified domain you can only email your own account address.
 - **Scheduling:** an in-process APScheduler job checks every 15 minutes and sends
   any due subscriptions. Configure cadence/hour/topics from the "Schedule" panel,
   or use **Send now** for an immediate run.

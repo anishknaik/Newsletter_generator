@@ -1,8 +1,9 @@
 """Email delivery: render a newsletter to an HTML email and send it.
 
-If SMTP isn't configured (SMTP_HOST blank), we run in *dev mode* and write each
-email to backend/outbox/ as an .html file instead of sending — so the feature
-works out of the box and is easy to test/demo.
+Transport is chosen at send time:
+  1. RESEND_API_KEY set  -> Resend HTTP API (works on hosts that block SMTP, e.g. Render)
+  2. SMTP_HOST set       -> SMTP (good for local dev with a Gmail App Password)
+  3. neither             -> dev mode: write the email to backend/outbox/ as .html
 """
 
 import os
@@ -13,6 +14,7 @@ from datetime import datetime, timezone
 from email.message import EmailMessage
 from pathlib import Path
 
+import httpx
 import markdown as md
 
 from models.db import SavedNewsletter
@@ -63,6 +65,25 @@ def render_email_html(newsletter: SavedNewsletter) -> str:
 </body></html>"""
 
 
+def _send_via_resend(recipients: list[str], subject: str, html: str, api_key: str) -> None:
+    """Send through Resend's HTTPS API (port 443) — not blocked like SMTP is."""
+    resp = httpx.post(
+        "https://api.resend.com/emails",
+        headers={"Authorization": f"Bearer {api_key}"},
+        json={
+            # On Resend's free tier without a verified domain this must be an
+            # onboarding@resend.dev sender; override via RESEND_FROM once verified.
+            "from": os.environ.get("RESEND_FROM", "Newsletter Generator <onboarding@resend.dev>"),
+            "to": recipients,
+            "subject": subject,
+            "html": html,
+        },
+        timeout=20,
+    )
+    if resp.status_code >= 400:
+        raise RuntimeError(f"Resend {resp.status_code}: {resp.text[:300]}")
+
+
 def send_email(to: str | list[str], subject: str, html: str) -> str:
     """Send an HTML email to one or more recipients, or write it to the outbox
     in dev mode. Returns a short status string for the API/scheduler logs."""
@@ -70,6 +91,12 @@ def send_email(to: str | list[str], subject: str, html: str) -> str:
     if not recipients:
         return "no recipients — nothing sent"
     who = recipients[0] + (f" +{len(recipients) - 1} more" if len(recipients) > 1 else "")
+
+    resend_key = os.environ.get("RESEND_API_KEY", "").strip()
+    if resend_key:
+        _send_via_resend(recipients, subject, html, resend_key)
+        return f"sent to {who} via Resend"
+
     host = os.environ.get("SMTP_HOST", "").strip()
 
     if not host:

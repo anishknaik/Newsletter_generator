@@ -98,27 +98,36 @@ environment; the frontend reads `VITE_API_URL` at build time.
 keys, since real keys are never committed but should be fresh for production. Set
 the new values as host env vars (never in the repo).
 
+Local dev uses SQLite automatically (no `DATABASE_URL` needed); production uses
+Postgres via `DATABASE_URL`.
+
 **1. Push to GitHub**
 ```bash
 git init && git add . && git commit -m "Newsletter generator"
 gh repo create newsletter-generator --public --source=. --push
 ```
 
-**2. Backend on Render** (uses [render.yaml](render.yaml))
-- New → Blueprint → pick the repo. Render reads `render.yaml` (Python web service,
-  `rootDir: backend`, 1 GB disk at `/var/data`, SQLite stored there).
-- Fill the dashboard secrets: `NEWSAPI_KEY`, `OPENROUTER_API_KEY`, `SMTP_*`,
-  `EMAIL_FROM`, and `ALLOWED_ORIGINS` (your Vercel URL — set after step 3).
-- Note: the persistent disk requires a paid **Starter** instance; on the free tier
-  the SQLite file resets on each deploy.
+**2. Free Postgres on Neon**
+- Create a project at <https://neon.tech>, then copy its connection string
+  (`postgresql://...?sslmode=require`). You'll paste it as `DATABASE_URL` on Render.
 
-**3. Frontend on Vercel**
+**3. Backend on Render** (uses [render.yaml](render.yaml))
+- New → Blueprint → pick the repo. Render reads `render.yaml` (free Python web
+  service, `rootDir: backend`).
+- Fill the dashboard secrets: `DATABASE_URL` (the Neon string), `NEWSAPI_KEY`,
+  `OPENROUTER_API_KEY`, `SMTP_*`, `EMAIL_FROM`, and `ALLOWED_ORIGINS` (your Vercel
+  URL — set after step 4). On first boot the app creates all tables automatically.
+- Free-tier note: the service sleeps after ~15 min idle (first request is slow),
+  and the in-process scheduler only fires while it's awake — **Send now** and
+  manual email always work.
+
+**4. Frontend on Vercel**
 - New Project → import the repo → set **Root Directory** to `frontend`
   (framework auto-detects as Vite).
 - Add env var `VITE_API_URL` = your Render backend URL (e.g.
   `https://newsletter-backend.onrender.com`), then deploy.
 
-**4. Wire them together**
+**5. Wire them together**
 - Put the Vercel URL into Render's `ALLOWED_ORIGINS` and redeploy the backend so
   CORS accepts the frontend.
 

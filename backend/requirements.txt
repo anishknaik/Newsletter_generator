@@ -10,4 +10,5 @@ email-validator==2.2.0
 markdown==3.7
 APScheduler==3.11.0
 slowapi==0.1.9
+psycopg2-binary==2.9.10
 pytest==8.3.4

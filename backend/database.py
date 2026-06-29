@@ -11,11 +11,16 @@ from sqlalchemy import text
 from sqlmodel import Session, SQLModel, create_engine
 
 DATABASE_URL = os.environ.get("DATABASE_URL", "sqlite:///newsletters.db")
+# Some hosts hand out "postgres://"; SQLAlchemy needs "postgresql://".
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 _IS_SQLITE = DATABASE_URL.startswith("sqlite")
 
-# check_same_thread=False lets FastAPI's threadpool share a SQLite connection.
+# SQLite: allow cross-thread sharing. Postgres: pre-ping so a connection that
+# went stale (e.g. a serverless DB that auto-suspended) is transparently retried.
 _connect_args = {"check_same_thread": False} if _IS_SQLITE else {}
-engine = create_engine(DATABASE_URL, connect_args=_connect_args)
+_engine_kwargs = {} if _IS_SQLITE else {"pool_pre_ping": True}
+engine = create_engine(DATABASE_URL, connect_args=_connect_args, **_engine_kwargs)
 
 
 def init_db() -> None:

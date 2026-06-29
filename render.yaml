@@ -12,6 +12,10 @@ services:
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
     envVars:
+      # Pin Python — newer versions (3.14) lack prebuilt pydantic-core wheels and
+      # fail trying to compile from Rust in Render's read-only build sandbox.
+      - key: PYTHON_VERSION
+        value: "3.12.7"
       # Generated once by Render; keeps login tokens valid across restarts.
       - key: JWT_SECRET
         generateValue: true
